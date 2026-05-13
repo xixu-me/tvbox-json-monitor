@@ -1,0 +1,17 @@
+{
+  "source_url": "https://www.xn--sss604efuw.com/tv/",
+  "final_url": "https://www.xn--sss604efuw.com/tv/",
+  "user_agent": "okhttp/3.15",
+  "raw_size": 20711,
+  "raw_sha256": "b993e136f723dd1fa87b413a21e0ef24b505550325d93d87d9e9d6f4da54a0e7",
+  "decoded_size": 13724,
+  "decoded_sha256": "05b5451b0935ba2d6a89e5f681e94b0b4541103a8badf115cc90577cba52339c",
+  "json_sha256": "5e1e3aabfdc9f138c86883749a255b1367cc50b94244d70a5066a081214f302b",
+  "jpeg_eoi_offset": 2399,
+  "appended_size": 18310,
+  "base64_size": 18300,
+  "etag": "\"69fe04c3-50e7\"",
+  "last_modified": "Fri, 08 May 2026 15:44:03 GMT",
+  "cache_control": "max-age=300",
+  "content_type": "text/html"
+}
