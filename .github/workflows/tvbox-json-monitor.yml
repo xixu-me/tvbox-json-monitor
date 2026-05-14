@@ -35,14 +35,43 @@ jobs:
           fi
 
       - name: Extract and decode TVBox JSON
-        run: python3 scripts/extract_tvbox.py
+        id: extract
+        run: |
+          set +e
+          python3 scripts/extract_tvbox.py
+          status="$?"
+          set -e
+
+          if [ "${status}" -eq 0 ]; then
+            echo "upstream_error=false" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+
+          if [ "${status}" -eq 75 ]; then
+            echo "upstream_error=true" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+
+          exit "${status}"
+
+      - name: Report skipped upstream update
+        if: ${{ steps.extract.outputs.upstream_error == 'true' }}
+        run: |
+          {
+            echo "### TVBox update skipped"
+            echo
+            echo "The upstream endpoint could not be fetched or decoded during this run."
+            echo "Existing generated files were left unchanged."
+          } >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Validate generated files
+        if: ${{ steps.extract.outputs.upstream_error == 'false' }}
         run: |
           python3 -m json.tool "${OUT_JSON}" > /dev/null
           python3 -m json.tool "${OUT_META}" > /dev/null
 
       - name: Commit and push changes
+        if: ${{ steps.extract.outputs.upstream_error == 'false' }}
         run: |
           if git diff --quiet -- "${OUT_JSON}" "${OUT_META}"; then
             echo "No TVBox JSON update detected."

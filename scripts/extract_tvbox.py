@@ -4,11 +4,20 @@
 from __future__ import annotations
 
 import base64
+import binascii
 import hashlib
 import json
 import os
+import sys
+import urllib.error
 import urllib.request
 from pathlib import Path
+
+UPSTREAM_ERROR_EXIT_CODE = 75
+
+
+class UpstreamPayloadError(Exception):
+    """Raised when the upstream endpoint cannot provide a usable payload."""
 
 
 def main() -> None:
@@ -25,27 +34,41 @@ def main() -> None:
         },
     )
 
-    with urllib.request.urlopen(request, timeout=30) as response:
-        raw_payload = response.read()
-        final_url = response.geturl()
-        response_headers = dict(response.headers.items())
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            raw_payload = response.read()
+            final_url = response.geturl()
+            response_headers = dict(response.headers.items())
+    except urllib.error.HTTPError as error:
+        raise UpstreamPayloadError(
+            f"Upstream endpoint returned HTTP {error.code}."
+        ) from error
+    except urllib.error.URLError as error:
+        raise UpstreamPayloadError(
+            f"Could not fetch upstream endpoint: {error.reason}."
+        ) from error
 
     # The endpoint returns a JPEG-like payload to TVBox clients. The actual
     # configuration is appended after the JPEG EOI marker.
     jpeg_eoi_offset = raw_payload.find(b"\xff\xd9")
     if jpeg_eoi_offset < 0:
-        raise SystemExit("JPEG EOI marker FF D9 was not found.")
+        raise UpstreamPayloadError("JPEG EOI marker FF D9 was not found.")
 
     appended_payload = raw_payload[jpeg_eoi_offset + 2 :]
 
     # The appended section uses a short prefix followed by the "**" separator.
     separator_offset = appended_payload.find(b"**")
     if separator_offset < 0:
-        raise SystemExit('Payload separator "**" was not found after JPEG EOI.')
+        raise UpstreamPayloadError(
+            'Payload separator "**" was not found after JPEG EOI.'
+        )
 
     base64_payload = appended_payload[separator_offset + 2 :]
-    decoded_bytes = base64.b64decode(base64_payload, validate=True)
-    decoded_text = decoded_bytes.decode("utf-8-sig")
+    try:
+        decoded_bytes = base64.b64decode(base64_payload, validate=True)
+        decoded_text = decoded_bytes.decode("utf-8-sig")
+    except (binascii.Error, UnicodeDecodeError) as error:
+        raise UpstreamPayloadError("Payload could not be decoded.") from error
 
     # The upstream configuration may contain JSONC-style full-line comments.
     # This repository stores strict JSON for compatibility with standard tools.
@@ -55,7 +78,10 @@ def main() -> None:
         if not line.lstrip().startswith("//")
     )
 
-    parsed_json = json.loads(strict_json_text)
+    try:
+        parsed_json = json.loads(strict_json_text)
+    except json.JSONDecodeError as error:
+        raise UpstreamPayloadError("Decoded payload is not valid JSON.") from error
 
     output_json.parent.mkdir(parents=True, exist_ok=True)
     output_meta.parent.mkdir(parents=True, exist_ok=True)
@@ -92,4 +118,8 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except UpstreamPayloadError as error:
+        print(f"Upstream payload error: {error}", file=sys.stderr)
+        raise SystemExit(UPSTREAM_ERROR_EXIT_CODE) from error
