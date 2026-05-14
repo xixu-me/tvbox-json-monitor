@@ -40,7 +40,7 @@ https://raw.githubusercontent.com/xixu-me/tvbox-json-monitor/main/data/tvbox.jso
 
 ## 自动更新
 
-GitHub Actions 每 5 分钟检查一次上游配置，也支持在 Actions 页面手动触发。
+GitHub Actions 每 12 小时检查一次上游配置，也支持在 Actions 页面手动触发。定时任务使用 UTC 时间运行，当前计划为每天 `00:00` 和 `12:00` UTC。
 
 当 `data/tvbox.json` 或 `data/tvbox.meta.json` 有变化时，工作流会提交类似下面的 commit：
 

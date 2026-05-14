@@ -2,8 +2,8 @@ name: Monitor TVBox JSON
 
 on:
   schedule:
-    # Run every 5 minutes. GitHub-hosted schedules may be delayed under load.
-    - cron: "*/5 * * * *"
+    # Run every 12 hours at 00:00 and 12:00 UTC.
+    - cron: "0 */12 * * *"
   workflow_dispatch:
 
 permissions:
