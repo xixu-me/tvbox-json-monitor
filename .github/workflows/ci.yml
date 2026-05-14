@@ -1,0 +1,91 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate generated JSON
+        run: |
+          python3 -m json.tool data/tvbox.json > /dev/null
+          python3 -m json.tool data/tvbox.meta.json > /dev/null
+
+      - name: Test extractor success path
+        run: |
+          temp_dir="$(mktemp -d)"
+          trap 'rm -rf "${temp_dir}"' EXIT
+
+          payload_path="${temp_dir}/payload.bin"
+          PAYLOAD_PATH="${payload_path}" python3 - <<'PY'
+          import base64
+          import os
+
+          decoded_json = b'{"sites":[{"key":"demo"}]}'
+          payload = (
+              b"\xff\xd8\xff\xd9"
+              + b"prefix**"
+              + base64.b64encode(decoded_json)
+          )
+
+          with open(os.environ["PAYLOAD_PATH"], "wb") as payload_file:
+              payload_file.write(payload)
+          PY
+
+          payload_url="$(python3 - "${payload_path}" <<'PY'
+          import sys
+          from pathlib import Path
+
+          print(Path(sys.argv[1]).resolve().as_uri())
+          PY
+          )"
+
+          TVBOX_URL="${payload_url}" \
+          OUT_JSON="${temp_dir}/tvbox.json" \
+          OUT_META="${temp_dir}/tvbox.meta.json" \
+            python3 scripts/extract_tvbox.py > /dev/null
+
+          python3 -m json.tool "${temp_dir}/tvbox.json" > /dev/null
+          python3 -m json.tool "${temp_dir}/tvbox.meta.json" > /dev/null
+
+      - name: Test extractor upstream error path
+        run: |
+          temp_dir="$(mktemp -d)"
+          trap 'rm -rf "${temp_dir}"' EXIT
+
+          bad_payload_path="${temp_dir}/bad-payload.bin"
+          printf 'not-a-tvbox-payload' > "${bad_payload_path}"
+
+          bad_payload_url="$(python3 - "${bad_payload_path}" <<'PY'
+          import sys
+          from pathlib import Path
+
+          print(Path(sys.argv[1]).resolve().as_uri())
+          PY
+          )"
+
+          set +e
+          TVBOX_URL="${bad_payload_url}" \
+          OUT_JSON="${temp_dir}/tvbox.json" \
+          OUT_META="${temp_dir}/tvbox.meta.json" \
+            python3 scripts/extract_tvbox.py > /dev/null 2>&1
+          status="$?"
+          set -e
+
+          if [ "${status}" -ne 75 ]; then
+            echo "Expected upstream error exit code 75, got ${status}."
+            exit 1
+          fi
