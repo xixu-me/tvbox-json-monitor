@@ -3,7 +3,7 @@ name: Monitor TVBox JSON
 on:
   schedule:
     # Run every 12 hours at 00:00 and 12:00 UTC.
-    - cron: "0 */12 * * *"
+    - cron: "7 */12 * * *"
   workflow_dispatch:
 
 permissions:
